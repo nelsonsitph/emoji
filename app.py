@@ -8,7 +8,7 @@ st.set_page_config(page_title="Emoji Exporter", page_icon="🌟", layout="wide")
 st.title("🌟 Professional Emoji Selection Tool")
 st.markdown("Search, select, and build your list of Unicode emojis across multiple searches.")
 
-# Quick Jump Button (Uses standard HTML/CSS to jump down the page)
+# Quick Jump Button
 st.markdown("""
     <style>
     .jump-btn {
@@ -69,7 +69,12 @@ if not df.empty:
 
     st.write(f"Showing **{len(filtered_df)}** emojis matching your search")
 
-    # Interactive Data Table (With fixed height for internal scrolling!)
+    # --- DYNAMIC HEIGHT UPGRADE ---
+    # The table will calculate its own height based on the number of results.
+    # It allows 35 pixels per row, capped at a maximum of 800 pixels tall so it doesn't break your page.
+    table_height = min(len(filtered_df) * 35 + 45, 800)
+
+    # Interactive Data Table
     edited_df = st.data_editor(
         filtered_df,
         column_config={
@@ -81,7 +86,7 @@ if not df.empty:
         disabled=["Emoji", "Name", "Unicode"], 
         hide_index=True,
         use_container_width=True,
-        height=500, # <-- This is the scroll bar for the main list
+        height=table_height,  # <-- Using our new smart height calculation
         key="emoji_table" 
     )
 
@@ -100,7 +105,6 @@ if not df.empty:
                 del st.session_state.selection_cart[u]
 
     # 5. Export Logic
-    # The anchor target for the Jump Button
     st.markdown("<div id='export-section'></div>", unsafe_allow_html=True) 
     st.markdown("---")
     
@@ -109,7 +113,6 @@ if not df.empty:
     if len(st.session_state.selection_cart) > 0:
         export_df = pd.DataFrame(list(st.session_state.selection_cart.values()))
         
-        # Mini-preview of the cart (also with a fixed height so it doesn't get too long)
         st.dataframe(export_df, hide_index=True, use_container_width=True, height=250)
         
         csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
