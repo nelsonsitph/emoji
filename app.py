@@ -4,10 +4,29 @@ import requests
 
 # 1. Page Configuration
 st.set_page_config(page_title="Emoji Exporter", page_icon="🌟", layout="wide")
+
 st.title("🌟 Professional Emoji Selection Tool")
 st.markdown("Search, select, and build your list of Unicode emojis across multiple searches.")
 
-# Initialize a "shopping cart" in the session state to remember picks permanently
+# Quick Jump Button (Uses standard HTML/CSS to jump down the page)
+st.markdown("""
+    <style>
+    .jump-btn {
+        background-color: #007bff;
+        color: white !important;
+        padding: 8px 16px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+        display: inline-block;
+        margin-bottom: 15px;
+    }
+    .jump-btn:hover { background-color: #0056b3; }
+    </style>
+    <a href="#export-section" class="jump-btn">⬇️ Jump Down to Export Cart</a>
+""", unsafe_allow_html=True)
+
+# Initialize a "shopping cart" in the session state
 if 'selection_cart' not in st.session_state:
     st.session_state.selection_cart = {}
 
@@ -33,17 +52,14 @@ def fetch_emoji_data():
         return pd.DataFrame()
 
 # 3. Load the data
-with st.spinner("Loading emojis... (This should only take a second!)"):
+with st.spinner("Loading emojis..."):
     df = fetch_emoji_data()
 
 # 4. The User Interface
 if not df.empty:
-    # Search Bar
     search_query = st.text_input("🔍 Search emoji by name or keyword...", "")
     
-    # Filter logic
     if search_query:
-        # Create a copy so we don't modify the original cached dataframe
         filtered_df = df[df['Name'].str.contains(search_query, case=False, na=False)].copy()
     else:
         filtered_df = df.copy()
@@ -53,7 +69,7 @@ if not df.empty:
 
     st.write(f"Showing **{len(filtered_df)}** emojis matching your search")
 
-    # Interactive Data Table
+    # Interactive Data Table (With fixed height for internal scrolling!)
     edited_df = st.data_editor(
         filtered_df,
         column_config={
@@ -65,15 +81,14 @@ if not df.empty:
         disabled=["Emoji", "Name", "Unicode"], 
         hide_index=True,
         use_container_width=True,
-        height=400,
-        key="emoji_table" # Helps Streamlit track the table smoothly
+        height=500, # <-- This is the scroll bar for the main list
+        key="emoji_table" 
     )
 
-    # Update the shopping cart based on what the user checked/unchecked in the current view
+    # Update the shopping cart
     for index, row in edited_df.iterrows():
         u = row['Unicode']
         if row['Select']:
-            # If checked, add to cart
             if u not in st.session_state.selection_cart:
                 st.session_state.selection_cart[u] = {
                     "Emoji": row['Emoji'],
@@ -81,24 +96,24 @@ if not df.empty:
                     "Unicode": u
                 }
         else:
-            # If unchecked, remove from cart
             if u in st.session_state.selection_cart:
                 del st.session_state.selection_cart[u]
 
-    # 5. Export Logic (Based entirely on the Cart, not just the search results)
+    # 5. Export Logic
+    # The anchor target for the Jump Button
+    st.markdown("<div id='export-section'></div>", unsafe_allow_html=True) 
     st.markdown("---")
+    
     st.subheader(f"🛒 Your Export Cart: {len(st.session_state.selection_cart)} emojis selected")
     
     if len(st.session_state.selection_cart) > 0:
-        # Convert the cart dictionary back into a Dataframe for export
         export_df = pd.DataFrame(list(st.session_state.selection_cart.values()))
         
-        # Show a mini-preview of everything they have picked so far
-        st.dataframe(export_df, hide_index=True, use_container_width=True)
+        # Mini-preview of the cart (also with a fixed height so it doesn't get too long)
+        st.dataframe(export_df, hide_index=True, use_container_width=True, height=250)
         
         csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
         
-        # Layout buttons side-by-side
         col1, col2 = st.columns([1, 4])
         with col1:
             st.download_button(
@@ -109,9 +124,8 @@ if not df.empty:
                 type="primary"
             )
         with col2:
-            # Add a handy button to clear the cart and start over
             if st.button("🗑️ Clear Cart"):
                 st.session_state.selection_cart = {}
-                st.rerun() # Refresh the page instantly
+                st.rerun() 
     else:
         st.info("Search above and check the boxes. Your selections will appear here!")
