@@ -5,38 +5,34 @@ import requests
 # 1. Page Configuration
 st.set_page_config(page_title="Emoji Exporter", page_icon="🌟", layout="wide")
 st.title("🌟 Professional Emoji Selection Tool")
-st.markdown("Search, select, and export Unicode emojis for your materials.")
+st.markdown("Search, select, and build your list of Unicode emojis across multiple searches.")
+
+# Initialize a "shopping cart" in the session state to remember picks permanently
+if 'selection_cart' not in st.session_state:
+    st.session_state.selection_cart = {}
 
 # 2. The Online Data Fetcher (Cached for speed)
 @st.cache_data(show_spinner=False)
 def fetch_emoji_data():
-    # Using a fast, lightweight JSON source instead of the heavy HTML page
     url = "https://unpkg.com/emoji.json/emoji.json"
-    
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        
-        # Parse the JSON directly
         data = response.json()
         
         emoji_list = []
         for item in data:
-            # Format the data to match our table
             emoji_list.append({
-                "Select": False, 
                 "Emoji": item.get("char", ""),
-                "Name": item.get("name", "").title(), # Capitalize the first letters
+                "Name": item.get("name", "").title(),
                 "Unicode": "U+" + item.get("codes", "").replace(" ", " U+")
             })
-            
         return pd.DataFrame(emoji_list)
-        
     except Exception as e:
         st.error(f"Error fetching emoji data: {e}")
         return pd.DataFrame()
 
-# 3. Load the data with a fast loading message
+# 3. Load the data
 with st.spinner("Loading emojis... (This should only take a second!)"):
     df = fetch_emoji_data()
 
@@ -47,11 +43,15 @@ if not df.empty:
     
     # Filter logic
     if search_query:
-        filtered_df = df[df['Name'].str.contains(search_query, case=False, na=False)]
+        # Create a copy so we don't modify the original cached dataframe
+        filtered_df = df[df['Name'].str.contains(search_query, case=False, na=False)].copy()
     else:
-        filtered_df = df
+        filtered_df = df.copy()
 
-    st.write(f"Showing **{len(filtered_df)}** emojis")
+    # Pre-check boxes if the emoji is already in our shopping cart
+    filtered_df.insert(0, "Select", filtered_df['Unicode'].isin(st.session_state.selection_cart.keys()))
+
+    st.write(f"Showing **{len(filtered_df)}** emojis matching your search")
 
     # Interactive Data Table
     edited_df = st.data_editor(
@@ -62,31 +62,56 @@ if not df.empty:
             "Name": st.column_config.TextColumn("Description", width="large"),
             "Unicode": st.column_config.TextColumn("Unicode", width="medium"),
         },
-        disabled=["Emoji", "Name", "Unicode"], # Prevent editing the actual text
+        disabled=["Emoji", "Name", "Unicode"], 
         hide_index=True,
         use_container_width=True,
-        height=600
+        height=400,
+        key="emoji_table" # Helps Streamlit track the table smoothly
     )
 
-    # 5. Export Logic
-    selected_rows = edited_df[edited_df["Select"] == True]
+    # Update the shopping cart based on what the user checked/unchecked in the current view
+    for index, row in edited_df.iterrows():
+        u = row['Unicode']
+        if row['Select']:
+            # If checked, add to cart
+            if u not in st.session_state.selection_cart:
+                st.session_state.selection_cart[u] = {
+                    "Emoji": row['Emoji'],
+                    "Name": row['Name'],
+                    "Unicode": u
+                }
+        else:
+            # If unchecked, remove from cart
+            if u in st.session_state.selection_cart:
+                del st.session_state.selection_cart[u]
 
+    # 5. Export Logic (Based entirely on the Cart, not just the search results)
     st.markdown("---")
-    st.subheader("📥 Export Selected Emojis")
+    st.subheader(f"🛒 Your Export Cart: {len(st.session_state.selection_cart)} emojis selected")
     
-    if not selected_rows.empty:
-        st.success(f"You have selected {len(selected_rows)} emojis.")
+    if len(st.session_state.selection_cart) > 0:
+        # Convert the cart dictionary back into a Dataframe for export
+        export_df = pd.DataFrame(list(st.session_state.selection_cart.values()))
         
-        # Prepare the final CSV format
-        export_df = selected_rows.drop(columns=["Select"])
-        csv_data = export_df.to_csv(index=False).encode('utf-8-sig') # utf-8-sig is crucial for Excel
+        # Show a mini-preview of everything they have picked so far
+        st.dataframe(export_df, hide_index=True, use_container_width=True)
         
-        st.download_button(
-            label="Download Excel (CSV) File",
-            data=csv_data,
-            file_name="selected_emojis.csv",
-            mime="text/csv",
-            type="primary"
-        )
+        csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
+        
+        # Layout buttons side-by-side
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.download_button(
+                label="📥 Download CSV File",
+                data=csv_data,
+                file_name="selected_emojis.csv",
+                mime="text/csv",
+                type="primary"
+            )
+        with col2:
+            # Add a handy button to clear the cart and start over
+            if st.button("🗑️ Clear Cart"):
+                st.session_state.selection_cart = {}
+                st.rerun() # Refresh the page instantly
     else:
-        st.info("Check the boxes next to the emojis above to export them.")
+        st.info("Search above and check the boxes. Your selections will appear here!")
