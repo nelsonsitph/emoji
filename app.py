@@ -8,9 +8,28 @@ st.set_page_config(page_title="Emoji Exporter", page_icon="🌟", layout="wide")
 st.title("🌟 Professional Emoji Selection Tool")
 st.markdown("Search, select, and build your list of Unicode emojis across multiple searches.")
 
-# Quick Jump Button
+# --- CSS INJECTION: Force Visible Scrollbars and Buttons ---
 st.markdown("""
     <style>
+    /* Force the web browser to ALWAYS show a thick scrollbar inside tables */
+    ::-webkit-scrollbar {
+        width: 16px !important;
+        height: 16px !important;
+        display: block !important;
+    }
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1 !important; 
+        border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #888 !important; 
+        border-radius: 8px;
+        border: 3px solid #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #555 !important; 
+    }
+    
     .jump-btn {
         background-color: #007bff;
         color: white !important;
@@ -69,12 +88,7 @@ if not df.empty:
 
     st.write(f"Showing **{len(filtered_df)}** emojis matching your search")
 
-    # --- DYNAMIC HEIGHT UPGRADE ---
-    # The table will calculate its own height based on the number of results.
-    # It allows 35 pixels per row, capped at a maximum of 800 pixels tall so it doesn't break your page.
-    table_height = min(len(filtered_df) * 35 + 45, 800)
-
-    # Interactive Data Table
+    # Interactive Data Table with a STRICT MAXIMUM HEIGHT (400px)
     edited_df = st.data_editor(
         filtered_df,
         column_config={
@@ -86,7 +100,7 @@ if not df.empty:
         disabled=["Emoji", "Name", "Unicode"], 
         hide_index=True,
         use_container_width=True,
-        height=table_height,  # <-- Using our new smart height calculation
+        height=400, # <-- This locks the box size so the scrollbar STAYS inside the box
         key="emoji_table" 
     )
 
@@ -113,6 +127,7 @@ if not df.empty:
     if len(st.session_state.selection_cart) > 0:
         export_df = pd.DataFrame(list(st.session_state.selection_cart.values()))
         
+        # Keep the cart preview box small too
         st.dataframe(export_df, hide_index=True, use_container_width=True, height=250)
         
         csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
