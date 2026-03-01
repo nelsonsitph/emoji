@@ -49,3 +49,44 @@ if not df.empty:
     if search_query:
         filtered_df = df[df['Name'].str.contains(search_query, case=False, na=False)]
     else:
+        filtered_df = df
+
+    st.write(f"Showing **{len(filtered_df)}** emojis")
+
+    # Interactive Data Table
+    edited_df = st.data_editor(
+        filtered_df,
+        column_config={
+            "Select": st.column_config.CheckboxColumn("Add to Export", default=False),
+            "Emoji": st.column_config.TextColumn("Emoji", width="small"),
+            "Name": st.column_config.TextColumn("Description", width="large"),
+            "Unicode": st.column_config.TextColumn("Unicode", width="medium"),
+        },
+        disabled=["Emoji", "Name", "Unicode"], # Prevent editing the actual text
+        hide_index=True,
+        use_container_width=True,
+        height=600
+    )
+
+    # 5. Export Logic
+    selected_rows = edited_df[edited_df["Select"] == True]
+
+    st.markdown("---")
+    st.subheader("📥 Export Selected Emojis")
+    
+    if not selected_rows.empty:
+        st.success(f"You have selected {len(selected_rows)} emojis.")
+        
+        # Prepare the final CSV format
+        export_df = selected_rows.drop(columns=["Select"])
+        csv_data = export_df.to_csv(index=False).encode('utf-8-sig') # utf-8-sig is crucial for Excel
+        
+        st.download_button(
+            label="Download Excel (CSV) File",
+            data=csv_data,
+            file_name="selected_emojis.csv",
+            mime="text/csv",
+            type="primary"
+        )
+    else:
+        st.info("Check the boxes next to the emojis above to export them.")
